@@ -53,3 +53,37 @@ def getPlaylistRaw(rawURL):
     return songs
 sampleSongs = getPlaylistRaw("https://open.spotify.com/playlist/3AFvuS9t4qLhaaLBHRcSqk?si=0767d59f3bb9499c")
 print("Sample song array:", sampleSongs[0], len(sampleSongs))
+
+'''
+Generates a pd.DataFrame representing the tracks in the playlist and their IDs, href, names,
+album (objects), artists, and duration.
+
+:returns: a pandas DataFrame containing relevant track information in a given playlist
+'''
+def generate_playlist_df(rawURL):
+    api_url = getPlaylistAPIUrl(rawURL)
+    playlist_json = getPlaylist(api_url)
+    #script for manipulating track data into a usable format, stored in a provisional dataframe
+    track_list = playlist_json['items']
+    if not track_list:
+        #raise error, empty playlist
+        pass
+    playlist_df = pd.DataFrame()
+    for t in track_list:
+        track_info = t['track']
+        album = track_info['album']
+        href = track_info['href']
+        t_id = track_info['id']
+        name = track_info['name']
+        artists = track_info['artists']
+        duration = track_info['duration_ms']
+        temp_arr = [t_id, href, name, album, artists, duration]
+
+        temp_df = pd.DataFrame(data = temp_arr)
+        playlist_df = pd.concat([playlist_df, temp_df], axis = 1)
+    playlist_df = playlist_df.T
+    playlist_df = playlist_df.rename(columns = {0: 'ID', 1:'href', 2:'Name', 3:'Album', 4:'Artists', 5:'Duration'}).reset_index()
+    playlist_df = playlist_df.drop(columns = ['index'])
+    return playlist_df
+sample_df = generate_playlist_df("https://open.spotify.com/playlist/3AFvuS9t4qLhaaLBHRcSqk?si=0767d59f3bb9499c")
+print(sample_df)
