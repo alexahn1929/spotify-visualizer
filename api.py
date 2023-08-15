@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 import json
 import pickle
+import matplotlib.pyplot as plt
+import tabloo
 
 load_dotenv()
 
@@ -44,9 +46,6 @@ def makeAPIRequest(apiURL):
         raise Exception("Bad OAuth request")
     elif response.status_code == 429:
         raise Exception("Spotify API rate limit exceeded")
-    # data = response.json()
-    # with open('data.json', 'w') as f:
-    #     json.dump(data, f)
     return response.json()
 
 def getAudioFeatures(songs): #can take 100 songs max, returns array of song audio features in order
@@ -63,11 +62,11 @@ def getPlaylistRaw(rawURL):
         playlistJSON = makeAPIRequest(playlistJSON["next"])
         songsToAppend = [song["track"] for song in playlistJSON["items"]]
         for i, features in enumerate(getAudioFeatures(songsToAppend)):
-            playlistJSON["items"][i]["audio_features"] = features
-        songs += playlistJSON["items"]
+            songsToAppend[i]["audio_features"] = features
+        songs += songsToAppend
     return songs
-# sampleSongs = getPlaylistRaw("https://open.spotify.com/playlist/3AFvuS9t4qLhaaLBHRcSqk?si=0767d59f3bb9499c")
-# with open('data.obj', 'wb') as fileObj:
+# sampleSongs = getPlaylistRaw("https://open.spotify.com/playlist/1ID56tk92tPTeIJ5jH8aUb?si=571fdb006e8244a2")
+# with open('summer22.obj', 'wb') as fileObj:
 #     pickle.dump(sampleSongs, fileObj)
 # print("Sample song structure:", sampleSongs[0], len(sampleSongs))
 # print()
@@ -110,30 +109,42 @@ def generate_playlist_df(rawURL):
 
 def getDf(songs):
     df = pd.DataFrame(songs)
+    # tabloo.show(df) # df viewable in browser at localhost:5000
     metadata = df[["album", "artists", "id", "name", "preview_url"]]
-
-    features = df["audio_features"].apply(pd.Series)[["acousticness", "danceability", "energy", "instrumentalness", "liveness", "loudness", "speechiness", "valence"]] #drop any NaNs, and drop rows when concatting at end
-    #features = features.dropna() #some songs, ie. new ones, will not have this data in the API yet
-    keepRows = features.notna().all(axis=1)
-    features = features[keepRows]
-    metadata = metadata[keepRows]
+    features = df["audio_features"].apply(pd.Series)[["acousticness", "danceability", "energy", "instrumentalness", "liveness", "loudness", "speechiness", "valence"]]
+    keepRows = features.notna().all(axis=1) # drop any song for which features were not acquired
+    features = features[keepRows].reset_index(drop=True)
+    metadata = metadata[keepRows].reset_index(drop=True)
 
     features = features.apply(lambda col: (col - col.mean()) / col.std())
     data = np.array(features)
-    covariance = np.matmul(np.transpose(data), data)
+    covariance = np.cov(data, rowvar=False)
     eigenvalues, eigenvectors = np.linalg.eig(covariance)
-    print(features)
-    print()
-    print(data)
-    print()
-    print(covariance)
-    print()
-    print(eigenvalues)
-    print()
-    print(eigenvectors)
-    return data
+    order_of_importance = np.argsort(eigenvalues)[::-1] # high to low
+    sorted_eigenvectors = eigenvectors[:,order_of_importance] # sort the columns
 
-fileObj = open('data.obj', 'rb')
+    k = 3 # select the number of principal components
+    reduced_data = pd.DataFrame(np.matmul(data, sorted_eigenvectors[:,:k]), columns=["x", "y", "z"]) # transform the original data
+    processed_data = pd.concat([metadata, reduced_data], axis=1)
+    processed_data.to_json("out.json", orient="index")
+
+    # explained_variance = sorted_eigenvalues / np.sum(sorted_eigenvalues)
+    # cumulative_variance = np.cumsum(explained_variance)
+
+    # # Plot scree plot from PCA
+    # x_labels = ['PC{}'.format(i+1) for i in range(len(explained_variance))]
+
+    # plt.plot(x_labels, explained_variance, marker='o', markersize=6, color='skyblue', linewidth=2, label='Proportion of variance')
+    # plt.plot(x_labels, cumulative_variance, marker='o', color='orange', linewidth=2, label="Cumulative variance")
+    # plt.legend()
+    # plt.title('Scree plot')
+    # plt.xlabel('Principal components')
+    # plt.ylabel('Proportion of variance')
+    # plt.show()
+
+    return processed_data
+
+fileObj = open('summer22.obj', 'rb')
 songsSaved = pickle.load(fileObj)
 fileObj.close()
 getDf(songsSaved)
