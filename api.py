@@ -21,7 +21,7 @@ def getToken():
         raise Exception("Could not obtain new access token")
     output = response.json()
     return output["access_token"]
-print("Sample token:", getToken())
+# print("Sample token:", getToken())
 
 def getPlaylistAPIUrl(rawURL):
     HOSTNAME = "open.spotify.com"
@@ -34,7 +34,7 @@ def getPlaylistAPIUrl(rawURL):
     
     playlistID = playlistURL.path[playlistURL.path.rindex("/")+1:]
     return f"https://api.spotify.com/v1/playlists/{playlistID}/tracks"
-print("Sample playlist API URL:", getPlaylistAPIUrl("https://open.spotify.com/playlist/3AFvuS9t4qLhaaLBHRcSqk?si=de0c34a3ac7549bf"))
+# print("Sample playlist API URL:", getPlaylistAPIUrl("https://open.spotify.com/playlist/3AFvuS9t4qLhaaLBHRcSqk?si=de0c34a3ac7549bf"))
 
 def makeAPIRequest(apiURL):
     global savedToken
@@ -109,9 +109,12 @@ def generate_playlist_df(rawURL):
 
 def getDf(songs):
     df = pd.DataFrame(songs)
+    df["album_image"] = df["album"].apply(lambda x: x["images"][0]["url"]) # could use [-1] to save bandwidth
+    df["album"] = df["album"].apply(lambda x: x["name"])
+    df["artists"] = df["artists"].apply(lambda x: ", ".join([artist["name"] for artist in x]))
     # tabloo.show(df) # df viewable in browser at localhost:5000
-    metadata = df[["album", "artists", "id", "name", "preview_url"]]
-    features = df["audio_features"].apply(pd.Series)[["acousticness", "danceability", "energy", "instrumentalness", "liveness", "loudness", "speechiness", "valence"]]
+    metadata = df[["album", "album_image", "artists", "id", "name", "preview_url"]]
+    features = df["audio_features"].apply(pd.Series)[["acousticness", "danceability", "energy", "instrumentalness", "liveness", "loudness", "speechiness", "valence"]] # double check -- could add popularity, maybe remove some?
     keepRows = features.notna().all(axis=1) # drop any song for which features were not acquired
     features = features[keepRows].reset_index(drop=True)
     metadata = metadata[keepRows].reset_index(drop=True)
@@ -141,7 +144,8 @@ def getDf(songs):
     # plt.xlabel('Principal components')
     # plt.ylabel('Proportion of variance')
     # plt.show()
-
+    
+    # print(metadata["preview_url"].isna().value_counts())
     return processed_data
 
 fileObj = open('summer22.obj', 'rb')
