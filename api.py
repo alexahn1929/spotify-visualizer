@@ -2,6 +2,8 @@ import requests
 from dotenv import load_dotenv
 import os
 from urllib.parse import urlparse
+import pandas as pd
+import numpy as np
 
 load_dotenv()
 
@@ -87,3 +89,22 @@ def generate_playlist_df(rawURL):
     return playlist_df
 sample_df = generate_playlist_df("https://open.spotify.com/playlist/3AFvuS9t4qLhaaLBHRcSqk?si=0767d59f3bb9499c")
 print(sample_df)
+
+def extract_audio_features(track_id):
+    endpoint = f"https://api.spotify.com/v1/audio-features/{track_id}"
+    global savedToken
+    response = requests.get(endpoint, headers={"Authorization": f"Bearer {savedToken}"})
+    if response.status_code == 401: #expired token
+        savedToken = getToken()
+        return extract_audio_features(track_id)
+    elif response.status_code == 403:
+        raise Exception("Bad OAuth request")
+    elif response.status_code == 429:
+        raise Exception("Spotify API rate limit exceeded")
+    return response.json()
+
+def append_audio_features(playlist_df):
+    playlist_df['helper'] = playlist_df.apply(lambda row: extract_audio_features(row['ID']), axis=1)
+    playlist_df['acousticness'] = playlist_df['helper']['acousticness']
+    return playlist_df
+print(append_audio_features(sample_df))
