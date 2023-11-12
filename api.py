@@ -1,3 +1,5 @@
+# BACKEND API: Run with "flask --app api run"
+
 import requests
 from dotenv import load_dotenv
 import os
@@ -5,9 +7,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from flask import Flask, Response, abort
+from flask_cors import CORS
 from markupsafe import escape
-# import pickle
-# import tabloo
+import pickle
+import tabloo
 # from urllib.parse import urlparse
 
 load_dotenv()
@@ -76,6 +79,7 @@ def getPlaylist(playlistID):
 # print(sampleSongs[-1])
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route("/api/playlist/<playlistID>")
 def getDf(playlistID):
@@ -106,6 +110,7 @@ def getDf(playlistID):
     k = 3 # select the number of principal components
     reduced_data = pd.DataFrame(np.matmul(data, sorted_eigenvectors[:,:k]), columns=["x", "y", "z"]) # transform the original data
     processed_data = pd.concat([metadata, reduced_data], axis=1)
+    # tabloo.show(processed_data)
     
     # explained_variance = sorted_eigenvalues / np.sum(sorted_eigenvalues)
     # cumulative_variance = np.cumsum(explained_variance)
@@ -127,3 +132,5 @@ def getDf(playlistID):
 # songsSaved = pickle.load(fileObj)
 # fileObj.close()
 # getDf(songsSaved)
+
+# getDf("1ID56tk92tPTeIJ5jH8aUb") # output
